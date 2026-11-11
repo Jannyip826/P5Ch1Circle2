@@ -1,0 +1,547 @@
+<!DOCTYPE html>
+<html lang="zh-HK">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>小五數學：圓的特性探究</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Canvas Confetti for Reward Animation -->
+    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+    
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;700&family=Noto+Sans+TC:wght@400;600;700;900&display=swap');
+
+        /* Custom CSS styles */
+        
+        body {
+            font-family: 'Noto Sans TC', sans-serif;
+            background-color: #F3F0FF;
+            touch-action: manipulation;
+            user-select: none;
+        }
+
+        .draggable {
+            cursor: grab;
+        }
+        .draggable:active {
+            cursor: grabbing;
+        }
+
+        /* Compact Ruler styling */
+        .ruler-container {
+            position: absolute;
+            transform-origin: 27px 72px; /* 紅色固定點中心：旋轉支點 */
+            touch-action: none;
+            z-index: 30;
+        }
+
+        .ruler-body {
+            background: rgba(255, 255, 255, 0.72);
+            backdrop-filter: blur(1px);
+            -webkit-backdrop-filter: blur(1px);
+            border: 3px solid #6D28D9;
+            box-shadow: 0 4px 12px rgba(124, 58, 237, 0.28), inset 0 0 0 1px rgba(255, 255, 255, 0.9);
+            border-radius: 8px;
+        }
+
+        /* Snap active status style */
+        .ruler-container.snapped .ruler-body {
+            border-color: #059669;
+            box-shadow: 0 0 15px rgba(5, 150, 105, 0.4);
+        }
+
+        ::-webkit-scrollbar {
+            width: 6px;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #CBD5E1;
+            border-radius: 4px;
+        }
+    </style>
+</head>
+<body class="min-h-screen text-slate-800 flex flex-col justify-between p-3 md:p-6">
+
+    <!-- Header Section -->
+    <header class="max-w-6xl w-full mx-auto bg-white rounded-2xl shadow-md p-4 mb-4 flex justify-between items-center border-b-4 border-purple-400">
+        <div class="flex items-center space-x-3">
+            <div class="bg-purple-600 text-white p-3 rounded-xl shadow-inner">
+                <i class="fa-solid me-1 fa-shapes text-2xl"></i>
+            </div>
+            <div>
+                <h1 class="text-xl md:text-2xl font-black text-purple-900 tracking-wide">圓的特性探究</h1>
+                <p class="text-xs md:text-sm text-purple-600 font-semibold">香港小學五年級數學科教學資源</p>
+            </div>
+        </div>
+        <button onclick="resetApp()" class="flex items-center space-x-1 bg-purple-100 hover:bg-purple-200 text-purple-700 font-bold px-3 py-2 rounded-xl transition-all duration-200 text-sm">
+            <i class="fa-solid fa-rotate-right"></i>
+            <span>重新開始</span>
+        </button>
+    </header>
+
+    <!-- Main Exploration Container -->
+    <main class="max-w-6xl w-full mx-auto grid grid-cols-1 lg:grid-cols-12 gap-6 flex-grow">
+        
+        <!-- Right Column: Interactive Canvas & Digital Ruler -->
+        <section class="lg:col-span-12 bg-white rounded-3xl p-4 md:p-6 shadow-lg border border-purple-100 flex flex-col justify-between relative min-h-[480px]">
+            
+            <!-- Instructions Banner & Controls on Canvas -->
+            <div class="flex flex-wrap justify-between items-center gap-2 mb-2 z-10 bg-slate-50 p-2 rounded-xl border border-slate-200">
+                <span class="text-base md:text-lg font-bold text-slate-600 flex items-center">
+                    <i class="fa-solid fa-hand-pointer text-purple-500 mr-1"></i>
+                    <span id="snapStatusText">把紅點移到圓心 O，按「固定直尺」，再轉動直尺量度 A、B、C 三點與圓心的距離</span>
+                </span>
+                <!-- Quick Ruler Rotate Controls -->
+                <div class="flex items-center space-x-1 shrink-0">
+                    <button onclick="rotateRuler(-15)" class="bg-white border border-purple-200 hover:bg-purple-50 active:bg-purple-100 text-purple-700 text-xs font-bold py-1 px-2 rounded-lg shadow-sm">
+                        <i class="fa-solid fa-rotate-left"></i> -15°
+                    </button>
+                    <button onclick="rotateRuler(15)" class="bg-white border border-purple-200 hover:bg-purple-50 active:bg-purple-100 text-purple-700 text-xs font-bold py-1 px-2 rounded-lg shadow-sm">
+                        <i class="fa-solid fa-rotate-right"></i> +15°
+                    </button>
+                    <button id="fixRulerBtn" onclick="fixRuler()" class="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold py-1 px-2 rounded-lg shadow-sm">
+                        <i class="fa-solid fa-thumbtack"></i> 固定直尺
+                    </button>
+                    <button id="detachBtn" onclick="detachRuler()" class="hidden bg-amber-500 hover:bg-amber-600 text-white text-xs font-bold py-1 px-2 rounded-lg shadow-sm">
+                        移開直尺
+                    </button>
+                    <button onclick="resetRuler()" class="bg-slate-200 hover:bg-slate-300 text-slate-700 text-xs font-bold py-1 px-2 rounded-lg">
+                        重置尺
+                    </button>
+                </div>
+            </div>
+
+            <!-- SVG Exploration Area (ViewBox 600x460) -->
+            <div id="canvasContainer" class="relative w-full flex-grow bg-radial from-slate-50 to-purple-50/50 rounded-2xl border-2 border-dashed border-purple-200 min-h-[380px] flex items-center justify-center">
+                
+                <svg id="mathSvg" class="w-full h-full absolute inset-0 select-none overflow-hidden rounded-2xl" viewBox="0 0 600 460">
+                    <defs>
+                        <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
+                            <feDropShadow dx="2" dy="2" stdDeviation="2" flood-opacity="0.2"/>
+                        </filter>
+                    </defs>
+
+                    <!-- Main Circle: 半徑 2 cm；比例 1 cm = 65 px，因此 r = 130 px -->
+                    <circle id="mainCircle" cx="280" cy="230" r="130" fill="none" stroke="#059669" stroke-width="4" />
+                    
+                    <!-- Auxiliary dashed lines -->
+                    <line id="lineOA" x1="280" y1="230" x2="280" y2="100" stroke="#A7F3D0" stroke-dasharray="6" stroke-width="2" />
+                    <line id="lineOB" x1="280" y1="230" x2="167.4" y2="295" stroke="#A7F3D0" stroke-dasharray="6" stroke-width="2" />
+                    <line id="lineOC" x1="280" y1="230" x2="392.6" y2="295" stroke="#A7F3D0" stroke-dasharray="6" stroke-width="2" />
+
+                    <!-- Center Point O -->
+                    <g transform="translate(280, 230)">
+                        <circle cx="0" cy="0" r="4" fill="#1E293B" />
+                        <text x="-26" y="6" font-family="Noto Sans TC" font-weight="900" font-size="18" fill="#1E293B">O</text>
+                    </g>
+
+                    <!-- Point A (top: 280, 100) -->
+                    <g transform="translate(280, 100)">
+                        <circle cx="0" cy="0" r="7" fill="#1E293B" filter="url(#shadow)" />
+                        <text x="-7" y="-14" font-family="Noto Sans TC" font-weight="900" font-size="20" fill="#1E293B">A</text>
+                    </g>
+
+                    <!-- Point B (bottom-left: 167.4, 295) -->
+                    <g transform="translate(167.4, 295)">
+                        <circle cx="0" cy="0" r="7" fill="#1E293B" filter="url(#shadow)" />
+                        <text x="-24" y="20" font-family="Noto Sans TC" font-weight="900" font-size="20" fill="#1E293B">B</text>
+                    </g>
+
+                    <!-- Point C (bottom-right: 392.6, 295) -->
+                    <g transform="translate(392.6, 295)">
+                        <circle cx="0" cy="0" r="7" fill="#1E293B" filter="url(#shadow)" />
+                        <text x="14" y="16" font-family="Noto Sans TC" font-weight="900" font-size="20" fill="#1E293B">C</text>
+                    </g>
+
+                    <!-- Draggable Point D -->
+                    <g id="pointDGroup" class="draggable" transform="translate(480, 390)" style="touch-action: none;">
+                        <circle id="dPulse" cx="0" cy="0" r="14" fill="#EC4899" opacity="0.2" class="animate-ping" />
+                        <circle cx="0" cy="0" r="8" fill="#DB2777" stroke="#FFFFFF" stroke-width="2.5" filter="url(#shadow)" />
+                        <text x="14" y="6" font-family="Noto Sans TC" font-weight="900" font-size="22" fill="#DB2777">D</text>
+                    </g>
+                </svg>
+
+                <!-- Resized & Shortened Ruler (Max刻度 3cm, 總寬約 240px) -->
+                <div id="ruler" class="ruler-container" style="left: 260px; top: 340px; transform: rotate(0deg);">
+                    <div class="ruler-body w-[235px] h-[75px] relative flex flex-col justify-between p-1 select-none">
+                        
+                        <!-- Snap Pin Indicator Icon on Zero mark -->
+                        <div id="snapBadge" class="hidden absolute -top-4 left-[10px] bg-emerald-600 text-white text-[10px] font-black px-1.5 py-0.5 rounded-full shadow-md z-40">
+                            <i class="fa-solid fa-thumbtack"></i> 鎖定圓心 O
+                        </div>
+
+                        <!-- Drag Handle / Body Header -->
+                        <div id="rulerDragHandle" class="w-full h-full absolute inset-0 cursor-move rounded-lg z-20"></div>
+
+                        <!-- 紅色固定點：按「固定直尺」後，此點會對準圓心 O 並作為旋轉軸 -->
+                        <div aria-label="直尺固定紅點" class="absolute left-[19px] -bottom-[5px] w-[10px] h-[10px] rounded-full bg-red-600 border border-white shadow z-30 pointer-events-none"></div>
+
+                        <!-- Ruler Scale Lines (0 to 3 cm, 65px per cm) -->
+                        <div class="relative w-[195px] h-full ml-[20px] pointer-events-none z-10">
+                            <div id="rulerTicks" class="w-full h-full relative"></div>
+                        </div>
+
+                        <!-- Rotation Knob on the right edge -->
+                        <div id="rulerRotateKnob" class="absolute -right-4 top-1/2 -translate-y-1/2 w-9 h-9 bg-purple-600 hover:bg-purple-700 active:scale-110 text-white rounded-full flex items-center justify-center cursor-grab shadow-lg transition-all z-50 pointer-events-auto border-2 border-white" title="拖動此處旋轉直尺">
+                            <i class="fa-solid fa-rotate text-sm pointer-events-none"></i>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+
+        </section>
+    </main>
+
+    <!-- Footer -->
+    <footer class="max-w-6xl w-full mx-auto text-center py-3 text-xs text-purple-400 font-semibold">
+        小學數學（五年級）· 圓形的特性探究單元
+    </footer>
+
+    <!-- Logic Script -->
+    <script>
+        // State management: 65px = 1cm
+        const SCALE_PX_PER_CM = 65; 
+        const CENTER_O = { x: 280, y: 230 };
+        const RADIUS_CM = 2.0;
+
+        let rulerState = {
+            x: 260,
+            y: 340,
+            angle: 0,
+            isSnapped: false
+        };
+
+        let pointDPos = { x: 480, y: 390 };
+
+        // DOM elements
+        const rulerEl = document.getElementById('ruler');
+        const rulerDragHandle = document.getElementById('rulerDragHandle');
+        const rulerRotateKnob = document.getElementById('rulerRotateKnob');
+        const pointDGroup = document.getElementById('pointDGroup');
+        const mathSvg = document.getElementById('mathSvg');
+        const snapBadge = document.getElementById('snapBadge');
+        const snapStatusText = document.getElementById('snapStatusText');
+        const detachBtn = document.getElementById('detachBtn');
+
+        // Initialize Ruler Ticks (0 cm to 3 cm, 65px per cm)
+        function generateRulerTicks() {
+            const ticksContainer = document.getElementById('rulerTicks');
+            ticksContainer.innerHTML = '';
+
+            // 3 cm scale, 65px/cm. 6.5px per mm.
+            for (let i = 0; i <= 30; i++) {
+                const mm = i;
+                const cm = mm / 10;
+                const leftPos = mm * 6.5; 
+
+                const tick = document.createElement('div');
+                tick.style.position = 'absolute';
+                tick.style.left = `${leftPos}px`;
+                tick.style.bottom = '0px';
+
+                if (mm % 10 === 0) {
+                    // Major tick (cm)
+                    tick.style.height = '32px';
+                    tick.style.width = '2px';
+                    tick.style.backgroundColor = '#0F172A';
+
+                    // Number label
+                    const label = document.createElement('span');
+                    label.textContent = cm;
+                    label.style.position = 'absolute';
+                    label.style.top = '-22px';
+                    label.style.left = '-4px';
+                    label.style.fontSize = '14px';
+                    label.style.fontWeight = '900';
+                    label.style.color = '#0F172A';
+                    label.style.fontFamily = 'Chakra Petch, sans-serif';
+                    tick.appendChild(label);
+                } else if (mm % 5 === 0) {
+                    // Medium tick (0.5 cm)
+                    tick.style.height = '20px';
+                    tick.style.width = '1.5px';
+                    tick.style.backgroundColor = '#1E293B';
+                } else {
+                    // Small tick (mm)
+                    tick.style.height = '12px';
+                    tick.style.width = '1px';
+                    tick.style.backgroundColor = '#334155';
+                }
+
+                ticksContainer.appendChild(tick);
+            }
+
+            // Unit Label (0 cm indicator)
+            const unitLabel = document.createElement('span');
+            unitLabel.textContent = '0 cm';
+            unitLabel.className = 'absolute top-2 left-0 text-[10px] font-black text-purple-900 font-mono opacity-90';
+            ticksContainer.appendChild(unitLabel);
+        }
+
+        // 手動固定：學生先將直尺 0 cm 刻度移近圓心 O，再按下按鈕。
+        window.fixRuler = function() {
+            const rulerPivotX = rulerState.x + 27;
+            const rulerPivotY = rulerState.y + 72;
+            const distToCenter = Math.hypot(rulerPivotX - CENTER_O.x, rulerPivotY - CENTER_O.y);
+
+            if (distToCenter > 45) {
+                snapStatusText.innerHTML = '<span class="text-amber-700 font-bold">請先把直尺的 0 cm 刻度移到圓心 O 附近，再按「固定直尺」。</span>';
+                return;
+            }
+
+            rulerState.x = CENTER_O.x - 27;
+            rulerState.y = CENTER_O.y - 72;
+            rulerState.isSnapped = true;
+            rulerEl.classList.add('snapped');
+            snapBadge.classList.remove('hidden');
+            detachBtn.classList.remove('hidden');
+            snapStatusText.innerHTML = '<span class="text-emerald-700 font-black"><i class="fa-solid fa-lock"></i> 直尺已固定在圓心 O，可拖動直尺轉動量度半徑。</span>';
+            updateRulerTransform();
+        };
+
+        window.detachRuler = function() {
+            rulerState.isSnapped = false;
+            rulerState.x += 25;
+            rulerState.y += 25;
+            rulerEl.classList.remove('snapped');
+            snapBadge.classList.add('hidden');
+            detachBtn.classList.add('hidden');
+            snapStatusText.innerText = '把紅點移到圓心 O，按「固定直尺」，再轉動直尺量度 A、B、C 三點與圓心的距離';
+            updateRulerTransform();
+        };
+
+        // 將直尺以 SVG viewBox 座標定位及縮放，確保 65 單位 = 1 cm，與圓半徑一致。
+        function getRulerMapping() {
+            const svgRect = mathSvg.getBoundingClientRect();
+            const parentRect = document.getElementById('canvasContainer').getBoundingClientRect();
+            const scale = mathSvg.getScreenCTM().a;
+            return { scale, offsetX: svgRect.left - parentRect.left, offsetY: svgRect.top - parentRect.top };
+        }
+
+        function getPivotClient() {
+            const mapping = getRulerMapping();
+            const parentRect = document.getElementById('canvasContainer').getBoundingClientRect();
+            return {
+                x: parentRect.left + mapping.offsetX + (rulerState.x + 27) * mapping.scale,
+                y: parentRect.top + mapping.offsetY + (rulerState.y + 72) * mapping.scale
+            };
+        }
+
+        // Update Ruler Display
+        function updateRulerTransform() {
+            const mapping = getRulerMapping();
+            rulerEl.style.left = `${mapping.offsetX + rulerState.x * mapping.scale}px`;
+            rulerEl.style.top = `${mapping.offsetY + rulerState.y * mapping.scale}px`;
+            rulerEl.style.transform = `scale(${mapping.scale}) rotate(${rulerState.angle}deg)`;
+        }
+
+        // --- Ruler Dragging Logic ---
+        let isDraggingRuler = false;
+        let rulerDragStart = { x: 0, y: 0 };
+        let initialAngleOnDragStart = 0;
+
+        rulerDragHandle.addEventListener('pointerdown', (e) => {
+            isDraggingRuler = true;
+            rulerDragStart = {
+                x: e.clientX,
+                y: e.clientY,
+                rulerX: rulerState.x,
+                rulerY: rulerState.y
+            };
+
+            if (rulerState.isSnapped) {
+                const pivot = getPivotClient();
+                const dx = e.clientX - pivot.x;
+                const dy = e.clientY - pivot.y;
+                initialAngleOnDragStart = Math.atan2(dy, dx) * (180 / Math.PI) - rulerState.angle;
+            }
+
+            rulerDragHandle.setPointerCapture(e.pointerId);
+            e.stopPropagation();
+        });
+
+        rulerDragHandle.addEventListener('pointermove', (e) => {
+            if (!isDraggingRuler) return;
+
+            if (rulerState.isSnapped) {
+                const pivot = getPivotClient();
+                const dx = e.clientX - pivot.x;
+                const dy = e.clientY - pivot.y;
+                let currentAngle = Math.atan2(dy, dx) * (180 / Math.PI);
+                rulerState.angle = currentAngle - initialAngleOnDragStart;
+            } else {
+                const mapping = getRulerMapping();
+                const dx = (e.clientX - rulerDragStart.x) / mapping.scale;
+                const dy = (e.clientY - rulerDragStart.y) / mapping.scale;
+                rulerState.x = rulerDragStart.rulerX + dx;
+                rulerState.y = rulerDragStart.rulerY + dy;
+            }
+
+            updateRulerTransform();
+        });
+
+        rulerDragHandle.addEventListener('pointerup', (e) => {
+            isDraggingRuler = false;
+            try { rulerDragHandle.releasePointerCapture(e.pointerId); } catch(err){}
+        });
+
+        // --- Ruler Rotation Knob Logic ---
+        let isRotatingRuler = false;
+
+        rulerRotateKnob.addEventListener('pointerdown', (e) => {
+            isRotatingRuler = true;
+            rulerRotateKnob.setPointerCapture(e.pointerId);
+            e.stopPropagation();
+        });
+
+        rulerRotateKnob.addEventListener('pointermove', (e) => {
+            if (!isRotatingRuler) return;
+            const pivot = getPivotClient();
+            const dx = e.clientX - pivot.x;
+            const dy = e.clientY - pivot.y;
+
+            let angleRad = Math.atan2(dy, dx);
+            let angleDeg = angleRad * (180 / Math.PI);
+
+            rulerState.angle = angleDeg;
+            updateRulerTransform();
+        });
+
+        rulerRotateKnob.addEventListener('pointerup', (e) => {
+            isRotatingRuler = false;
+            try { rulerRotateKnob.releasePointerCapture(e.pointerId); } catch(err){}
+        });
+
+        // Quick rotate buttons
+        window.rotateRuler = function(delta) {
+            rulerState.angle = (rulerState.angle + delta) % 360;
+            updateRulerTransform();
+        };
+
+        window.resetRuler = function() {
+            rulerState = { x: 260, y: 340, angle: 0, isSnapped: false };
+            rulerEl.classList.remove('snapped');
+            snapBadge.classList.add('hidden');
+            detachBtn.classList.add('hidden');
+            snapStatusText.innerText = '把紅點移到圓心 O，按「固定直尺」，再轉動直尺量度 A、B、C 三點與圓心的距離';
+            updateRulerTransform();
+        };
+
+        // --- Point D Dragging Logic ---
+        let isDraggingD = false;
+
+        function getSvgCoordinates(e) {
+            const rect = mathSvg.getBoundingClientRect();
+            const viewBox = mathSvg.viewBox.baseVal;
+            const scaleX = viewBox.width / rect.width;
+            const scaleY = viewBox.height / rect.height;
+
+            return {
+                x: (e.clientX - rect.left) * scaleX,
+                y: (e.clientY - rect.top) * scaleY
+            };
+        }
+
+        pointDGroup.addEventListener('pointerdown', (e) => {
+            isDraggingD = true;
+            pointDGroup.setPointerCapture(e.pointerId);
+            e.stopPropagation();
+        });
+
+        pointDGroup.addEventListener('pointermove', (e) => {
+            if (!isDraggingD) return;
+            const coords = getSvgCoordinates(e);
+
+            const distToCenter = Math.hypot(coords.x - CENTER_O.x, coords.y - CENTER_O.y);
+            const targetRadiusPx = RADIUS_CM * SCALE_PX_PER_CM; // 130px
+
+            if (Math.abs(distToCenter - targetRadiusPx) < 20) {
+                // Snap exactly to circle circumference
+                const angle = Math.atan2(coords.y - CENTER_O.y, coords.x - CENTER_O.x);
+                pointDPos.x = CENTER_O.x + targetRadiusPx * Math.cos(angle);
+                pointDPos.y = CENTER_O.y + targetRadiusPx * Math.sin(angle);
+            } else {
+                pointDPos.x = Math.max(20, Math.min(580, coords.x));
+                pointDPos.y = Math.max(20, Math.min(440, coords.y));
+            }
+
+            pointDGroup.setAttribute('transform', `translate(${pointDPos.x}, ${pointDPos.y})`);
+        });
+
+        pointDGroup.addEventListener('pointerup', (e) => {
+            isDraggingD = false;
+            try { pointDGroup.releasePointerCapture(e.pointerId); } catch(err){}
+        });
+
+        // --- Answer Verification ---
+        window.checkAnswers = function() {
+            const valA = parseFloat(document.getElementById('inputA').value);
+            const valB = parseFloat(document.getElementById('inputB').value);
+            const valC = parseFloat(document.getElementById('inputC').value);
+            const valD = parseFloat(document.getElementById('inputD').value);
+
+            let allCorrect = true;
+            const isCorrect = (val) => Math.abs(val - 2.0) <= 0.1;
+
+            // Check A, B, C
+            ['A', 'B', 'C'].forEach((pt, idx) => {
+                const val = [valA, valB, valC][idx];
+                const fbEl = document.getElementById(`feedback${pt}`);
+                if (isCorrect(val)) {
+                    fbEl.innerHTML = '<i class="fa-solid fa-circle-check text-emerald-500"></i>';
+                } else {
+                    fbEl.innerHTML = '<i class="fa-solid fa-circle-xmark text-rose-500"></i>';
+                    allCorrect = false;
+                }
+            });
+
+            // Check D
+            const distDPx = Math.hypot(pointDPos.x - CENTER_O.x, pointDPos.y - CENTER_O.y);
+            const actualDCm = Math.round((distDPx / SCALE_PX_PER_CM) * 10) / 10;
+
+            if (!isNaN(valD) && Math.abs(valD - actualDCm) <= 0.1) {
+                document.getElementById('feedbackD').innerHTML = '<i class="fa-solid fa-circle-check text-emerald-500"></i>';
+            } else {
+                document.getElementById('feedbackD').innerHTML = '<i class="fa-solid fa-circle-xmark text-rose-500"></i>';
+                allCorrect = false;
+            }
+
+            if (allCorrect) {
+                document.getElementById('discoveryBox').classList.remove('hidden');
+                if (typeof confetti === 'function') {
+                    confetti({ particleCount: 120, spread: 80, origin: { y: 0.6 } });
+                }
+            }
+        };
+
+        // Reset App
+        window.resetApp = function() {
+            ['inputA', 'inputB', 'inputC', 'inputEstD', 'inputD'].forEach(id => {
+                const el = document.getElementById(id);
+                if (el) el.value = '';
+            });
+            ['feedbackA', 'feedbackB', 'feedbackC', 'feedbackD'].forEach(id => {
+                const el = document.getElementById(id);
+                if (el) el.innerHTML = '';
+            });
+
+            const discoveryBox = document.getElementById('discoveryBox');
+            if (discoveryBox) discoveryBox.classList.add('hidden');
+
+            pointDPos = { x: 480, y: 390 };
+            pointDGroup.setAttribute('transform', `translate(${pointDPos.x}, ${pointDPos.y})`);
+
+            resetRuler();
+        };
+
+        window.onload = function() {
+            generateRulerTicks();
+            updateRulerTransform();
+        };
+        window.addEventListener('resize', updateRulerTransform);
+    </script>
+</body>
+</html>
